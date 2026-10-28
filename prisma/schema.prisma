@@ -1,0 +1,272 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model User {
+  id           Int      @id @default(autoincrement())
+  username     String   @unique
+  passwordHash String?
+  displayName  String
+  role         String   // admin, coordinador_sistemas, referente, supervisor, system
+  isActive     Boolean  @default(true)
+  glpiUserId   Int?     @unique
+  adObjectId               String?   @unique
+  email                    String?
+  authSource               String    @default("local") // "local" | "ad" | "system"
+  directoryActive          Boolean?
+  directoryStatusCheckedAt DateTime?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  sectorScopes    UserSectorScope[]
+  rankingsOwned   TicketRanking[]    @relation("RankingOwner")
+  rankingsCreated TicketRanking[]    @relation("RankingCreatedBy")
+  rankingsUpdated TicketRanking[]    @relation("RankingUpdatedBy")
+  coordinations            TicketCoordination[]
+  auditLogs                AuditLog[]
+  referentAssignments      SectorReferentAssignment[]
+}
+
+model UserSectorScope {
+  id          Int    @id @default(autoincrement())
+  userId      Int
+  sectorName  String
+  glpiGroupId Int?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, sectorName])
+  @@unique([userId, glpiGroupId])
+  @@index([glpiGroupId])
+}
+
+model GlpiTicketCache {
+  ticketId           Int      @id
+  title              String
+  contentPlain       String   @default("")
+  status             Int
+  statusLabel        String   @default("")
+  type               Int      @default(1)
+  typeLabel          String   @default("")
+  priority           Int      @default(3)
+  priorityLabel      String   @default("")
+  openedAt           String   @default("")
+  updatedAtGlpi      String   @default("")
+  solvedAt           String?
+  closedAt           String?
+  requesterName      String   @default("")
+  requesterGroup     String   @default("")
+  assignedTechnician String   @default("")
+  assignedGroupIds   String   @default("") // JSON array as string
+  assignedGroupNames String   @default("") // JSON array as string
+  detectedSector     String   @default("Sin sector")
+  isSistemasScope    Boolean  @default(false)
+  isTecnologiaScope  Boolean  @default(false)
+  webUrl             String   @default("")
+  syncedAt           DateTime @default(now())
+
+  // New normalized fields (added in additive migration)
+  requesterUserId       Int?
+  requesterGroupId      Int?
+  detectedSectorGroupId Int?
+  detectedSectorName    String?
+  sectorSource          String?
+  categoryId            Int?
+  entityId              Int?
+  locationId            Int?
+  requestTypeId         Int?
+  urgency               Int?
+  impact                Int?
+  glpiPriority          Int?
+
+  rankings      TicketRanking[]
+  coordination  TicketCoordination?
+}
+
+model TicketRanking {
+  id              Int      @id @default(autoincrement())
+  ticketId        Int
+  sectorName      String
+  glpiGroupId     Int
+  rankPosition    Int
+  ownerUserId     Int
+  createdByUserId Int
+  updatedByUserId Int
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  isActive        Boolean  @default(true)
+
+  ticket    GlpiTicketCache @relation(fields: [ticketId], references: [ticketId], onDelete: Cascade)
+  owner     User            @relation("RankingOwner", fields: [ownerUserId], references: [id])
+  createdBy User            @relation("RankingCreatedBy", fields: [createdByUserId], references: [id])
+  updatedBy User            @relation("RankingUpdatedBy", fields: [updatedByUserId], references: [id])
+
+  @@unique([ownerUserId, ticketId])
+  @@index([ownerUserId, isActive, rankPosition])
+}
+
+model SectorReferentAssignment {
+  id              Int      @id @default(autoincrement())
+  glpiGroupId     Int      @unique
+  referentUserId  Int
+  assignedAt      DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  referent User @relation(fields: [referentUserId], references: [id])
+
+  @@index([referentUserId])
+}
+
+model TicketCoordination {
+  id                     Int      @id @default(autoincrement())
+  ticketId               Int      @unique
+  progressPercent        Int      @default(0)
+  coordinatorComment     String   @default("")
+  estimatedDeliveryDate  String?
+  updatedByUserId        Int
+  updatedAt              DateTime @updatedAt
+
+  ticket    GlpiTicketCache @relation(fields: [ticketId], references: [ticketId], onDelete: Cascade)
+  updatedBy User            @relation(fields: [updatedByUserId], references: [id])
+}
+
+model SyncRun {
+  id             Int      @id @default(autoincrement())
+  startedAt      DateTime @default(now())
+  finishedAt     DateTime?
+  status         String   @default("running") // running, success, error
+  ticketsFetched Int      @default(0)
+  errorMessage   String?
+
+  // New normalized stats
+  sistemasCount      Int @default(0)
+  tecnologiaCount    Int @default(0)
+  unroutedCount      Int @default(0)
+  activeCount        Int @default(0)
+  historyCount       Int @default(0)
+  sectorSourceCount  Int @default(0)
+  noSectorCount      Int @default(0)
+  usersCount         Int @default(0)
+  groupsCount        Int @default(0)
+  membershipsCount   Int @default(0)
+  publicNotesCount   Int @default(0)
+  privateNotesCount  Int @default(0)
+  durationMs         Int @default(0)
+}
+
+model AuditLog {
+  id            Int      @id @default(autoincrement())
+  userId        Int?     // NULLABLE para soportar eventos anónimos o usuarios borrados
+  action        String
+  entityType    String
+  entityId      String
+  beforeJson    String?
+  afterJson     String?
+  createdAt     DateTime @default(now())
+  actorName     String?  // Snapshot inmutable del nombre al momento del evento
+  actorUsername String?  // Snapshot inmutable del username al momento del evento
+
+  user          User?    @relation(fields: [userId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+
+  @@index([entityType, entityId])
+  @@index([createdAt])
+  @@index([userId])
+  @@index([actorUsername])
+  @@index([action])
+}
+
+// ==========================================
+// GLPI Master Data & Relations (Normalized)
+// ==========================================
+
+model GlpiGroupCache {
+  groupId       Int      @id
+  name          String
+  completeName  String
+  parentGroupId Int?
+  flags         String?
+  syncedAt      DateTime @default(now())
+}
+
+model GlpiUserCache {
+  glpiUserId     Int      @id
+  username       String
+  nombres        String
+  displayName    String
+  defaultGroupId Int?
+  isActive       Boolean  @default(true)
+  syncedAt       DateTime @default(now())
+}
+
+model GlpiUserGroupMembership {
+  id         Int     @id @default(autoincrement())
+  userId     Int
+  groupId    Int
+  isManager  Boolean @default(false)
+  isDelegate Boolean @default(false)
+  isDynamic  Boolean @default(false)
+
+  @@unique([userId, groupId])
+}
+
+model GlpiTicketGroupActor {
+  id        Int @id @default(autoincrement())
+  ticketId  Int
+  groupId   Int
+  actorType Int // 1: solicitante, 2: técnico, 3: observación
+
+  @@index([ticketId, groupId, actorType])
+  @@index([groupId])
+}
+
+model GlpiTicketUserActor {
+  id         Int @id @default(autoincrement())
+  ticketId   Int
+  glpiUserId Int
+  actorType  Int // 1: solicitante, 2: técnico, 3: observación
+
+  @@index([ticketId, glpiUserId, actorType])
+  @@index([glpiUserId])
+}
+
+model GlpiFollowupCache {
+  followupId   Int      @id
+  ticketId     Int
+  author       String?
+  contentPlain String
+  isPrivate    Boolean  @default(false)
+  createdAt    DateTime
+  updatedAt    DateTime
+
+  @@index([ticketId])
+}
+
+model GlpiTaskCache {
+  taskId       Int      @id
+  ticketId     Int
+  author       String?
+  technician   String?
+  techGroup    String?
+  contentPlain String
+  isPrivate    Boolean  @default(false)
+  state        Int
+  createdAt    DateTime
+  updatedAt    DateTime
+
+  @@index([ticketId])
+}
+
+model LoginAttempt {
+  id             Int      @id @default(autoincrement())
+  accountKeyHash String
+  ipKeyHash      String?
+  attemptedAt    DateTime @default(now())
+  success        Boolean  @default(false)
+
+  @@index([accountKeyHash, attemptedAt])
+  @@index([ipKeyHash, attemptedAt])
+}

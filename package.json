@@ -1,0 +1,53 @@
+{
+  "name": "appglpi_v3_antigravity",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev -p 8787",
+    "build": "next build",
+    "start": "next start -p 8787",
+    "lint": "eslint",
+    "db:push": "npx prisma db push",
+    "db:seed": "npx tsx prisma/seed.ts",
+    "db:reset": "npx prisma db push --force-reset && npx tsx prisma/seed.ts",
+    "db:count": "npx tsx scripts/count-db.ts",
+    "glpi:discover": "npx tsx scripts/glpi-discovery.ts",
+    "glpi:contract": "npx tsx scripts/glpi-contract-test.ts",
+    "sync:worker": "npx tsx scripts/sync-worker.ts"
+  },
+  "prisma": {
+    "seed": "npx tsx prisma/seed.ts"
+  },
+  "dependencies": {
+    "@prisma/adapter-better-sqlite3": "7.8.0",
+    "@prisma/adapter-mssql": "7.8.0",
+    "@prisma/client": "7.8.0",
+    "bcryptjs": "^3.0.3",
+    "better-sqlite3": "^12.11.1",
+    "dotenv": "^17.4.2",
+    "exceljs": "^4.4.0",
+    "html-entities": "^2.6.0",
+    "jsonwebtoken": "^9.0.3",
+    "msnodesqlv8": "5.2.3",
+    "mssql": "12.7.0",
+    "next": "16.2.10",
+    "react": "19.2.4",
+    "react-dom": "19.2.4",
+    "recharts": "^3.9.2",
+    "undici": "^8.7.0"
+  },
+  "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/jsonwebtoken": "^9.0.10",
+    "@types/mssql": "12.3.0",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9",
+    "eslint-config-next": "16.2.10",
+    "prisma": "7.8.0",
+    "tsx": "^4.23.1",
+    "typescript": "^5"
+  }
+}
